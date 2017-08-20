@@ -1,0 +1,126 @@
+<link rel="import" href="../../bower_components/polymer/polymer.html">
+<link rel="import" href="../../bower_components/iron-ajax/iron-ajax.html">
+<link rel="import" href="../../bower_components/google-map/google-map.html">
+<link rel="import" href="../../bower_components/google-map/google-map-marker.html">
+
+<dom-module id="where-is-curtis-app">
+  <template>
+    <style>
+      :host {
+        display: block;
+        height: 100%;
+        width: 100%;
+      }
+      google-map {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        left: 0;
+        right: 0;
+      }
+    </style>
+
+    <iron-ajax
+      auto
+      url="/locations.json"
+      handle-as="json"
+      last-response="{{ locations }}"
+      debounce-duration="300">
+    </iron-ajax>
+
+    <google-map
+        id="map"
+        api-key="AIzaSyAINbv3jFDQVe6k41E8KTJnF_OL7O-vK9o"
+        on-google-map-ready="mapReady"
+        latitude="{{ lastLocation.Latitude }}"
+        longitude="{{ lastLocation.Longitude }}"
+        fit-to-markers>
+
+      <template is="dom-repeat" as="location" items="{{ locations }}">
+        <google-map-marker
+            latitude="{{ location.Latitude }}"
+            longitude="{{ location.Longitude }}"
+            data-unix-time="{{ location.UnixTime }}">
+          <p>{{ prettyTime(location.UnixTime) }}</p>
+        </google-map-marker>
+      </template>
+    </google-map>
+
+  </template>
+
+  <script src="/bower_components/moment/moment.js"></script>
+  <script>
+    Polymer({
+
+      is: 'where-is-curtis-app',
+
+      properties: {
+        locations: {
+          type: Array,
+          observer: 'onLocationsChanged'
+        },
+        lastLocation: {
+          type: Object,
+          computed: 'computeLastLocation(locations)'
+        }
+      },
+
+      mapReady: function() {
+        console.log('map ready, loading layers');
+        var pctLayer = new google.maps.KmlLayer({
+          url: 'http://' + window.location.host + '/layers/2016_PCT.kmz',
+          map: this.$.map.map
+        });
+        var trailLayer = new google.maps.KmlLayer({
+          url: 'http://' + window.location.host + '/layers/trail.kmz',
+          map: this.$.map.map
+        });
+        var waypointsLayer = new google.maps.KmlLayer({
+          url: 'http://' + window.location.host + '/layers/waypoints.kmz',
+          map: this.$.map.map
+        });
+        [pctLayer, trailLayer, waypointsLayer].forEach(function(layer) {
+          layer.addListener('status_changed', function() {
+            console.log(layer, layer.getStatus());
+          });
+        });
+      },
+
+      onLocationsChanged: function() {
+        this.async(this.updateLastMarker, 100);
+      },
+
+      updateLastMarker: function() {
+        var markers = document.getElementsByTagName(
+          'google-map-marker');
+        if (markers.length === 0) {
+          this.async(this.updateLastMarker, 100);
+          return;
+        }
+        Array.prototype.sort(markers, function(m1, m2) {
+          return m1.dataUnixTime - m2.dataUnixTime;
+        });
+        var lastMarker = markers[markers.length - 1];
+        if (lastMarker && lastMarker.marker) {
+          lastMarker.marker.setIcon(
+            'https://maps.google.com/mapfiles/ms/icons/blue-dot.png');
+        } else {
+          this.async(this.updateLastMarker, 100);
+          return;
+        }
+      },
+
+      computeLastLocation(locations) {
+        if (locations) {
+          return locations[locations.length - 1];
+        }
+        return {};
+      },
+
+      prettyTime: function(unixTime) {
+        return moment.unix(unixTime).format("dddd, MMMM Do, h:mm:ss a");
+      }
+
+    });
+  </script>
+</dom-module>

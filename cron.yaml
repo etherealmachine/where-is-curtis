@@ -1,0 +1,4 @@
+cron:
+- description: hourly ingest
+  url: /tasks/ingest
+  schedule: every 6 hours
